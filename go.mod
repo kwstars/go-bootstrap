@@ -3,6 +3,8 @@ module github.com/kwstars/go-bootstrap
 go 1.25.3
 
 require (
+	github.com/golang-jwt/jwt/v5 v5.3.0
+	github.com/google/uuid v1.6.0
 	github.com/hashicorp/consul/api v1.33.0
 	github.com/hashicorp/consul/sdk v0.17.0
 	github.com/sony/sonyflake/v2 v2.2.0
