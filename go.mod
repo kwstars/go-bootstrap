@@ -13,6 +13,7 @@ require (
 	go.etcd.io/etcd/client/pkg/v3 v3.6.6
 	go.etcd.io/etcd/client/v3 v3.6.6
 	go.uber.org/zap v1.27.1
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
 require (
