@@ -44,11 +44,10 @@ type Generator struct {
 }
 
 // Option defines optional configuration for Generator
-type Option func(*config)
+type Option func(*generatorConfig) error
 
-type config struct {
-	startTime time.Time
-	timeUnit  time.Duration
+type generatorConfig struct {
+	settings  sonyflake.Settings
 	ttl       time.Duration
 	renewFreq time.Duration
 }
@@ -58,10 +57,12 @@ type config struct {
 // - TimeUnit: 10ms (balance between precision and lifespan)
 // - TTL: 30s (machine ID lease duration)
 // - RenewFreq: 10s (renew every 1/3 of TTL for safety)
-func defaultConfig() *config {
-	return &config{
-		startTime: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
-		timeUnit:  10 * time.Millisecond,
+func defaultGeneratorConfig() *generatorConfig {
+	return &generatorConfig{
+		settings: sonyflake.Settings{
+			StartTime: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+			TimeUnit:  10 * time.Millisecond,
+		},
 		ttl:       30 * time.Second,
 		renewFreq: 10 * time.Second,
 	}
@@ -70,8 +71,12 @@ func defaultConfig() *config {
 // WithStartTime sets the epoch start time
 // Must be in the past to avoid time overflow
 func WithStartTime(t time.Time) Option {
-	return func(c *config) {
-		c.startTime = t
+	return func(c *generatorConfig) error {
+		if t.After(time.Now()) {
+			return ErrInvalidStartTime
+		}
+		c.settings.StartTime = t
+		return nil
 	}
 }
 
@@ -79,24 +84,36 @@ func WithStartTime(t time.Time) Option {
 // Smaller units provide more precision but reduce lifespan
 // Recommended: 10ms (default) for most cases
 func WithTimeUnit(d time.Duration) Option {
-	return func(c *config) {
-		c.timeUnit = d
+	return func(c *generatorConfig) error {
+		if d < time.Millisecond {
+			return ErrInvalidTimeUnit
+		}
+		c.settings.TimeUnit = d
+		return nil
 	}
 }
 
 // WithTTL sets the machine ID lease duration
 // Should be long enough to survive temporary network issues
 func WithTTL(d time.Duration) Option {
-	return func(c *config) {
+	return func(c *generatorConfig) error {
+		if d <= 0 {
+			return errors.New("ttl must be positive")
+		}
 		c.ttl = d
+		return nil
 	}
 }
 
 // WithRenewFrequency sets how often to renew the machine ID lease
 // Should be significantly less than TTL (recommended: TTL/3)
 func WithRenewFrequency(d time.Duration) Option {
-	return func(c *config) {
+	return func(c *generatorConfig) error {
+		if d <= 0 {
+			return errors.New("renew frequency must be positive")
+		}
 		c.renewFreq = d
+		return nil
 	}
 }
 
@@ -108,9 +125,11 @@ func New(repo Repo, opts ...Option) (*Generator, error) {
 		return nil, errors.New("sonyflakex repo is required")
 	}
 
-	cfg := defaultConfig()
+	cfg := defaultGeneratorConfig()
 	for _, opt := range opts {
-		opt(cfg)
+		if err := opt(cfg); err != nil {
+			return nil, fmt.Errorf("apply option failed: %w", err)
+		}
 	}
 
 	if err := validateConfig(cfg); err != nil {
@@ -133,14 +152,10 @@ func New(repo Repo, opts ...Option) (*Generator, error) {
 		return nil, fmt.Errorf("machine ID %d exceeds bit space (0-%d)", machineID, maxMachineID-1)
 	}
 
-	settings := sonyflake.Settings{
-		StartTime:      cfg.startTime,
-		TimeUnit:       cfg.timeUnit,
-		MachineID:      func() (int, error) { return machineID, nil },
-		CheckMachineID: func(id int) bool { return id == machineID },
-	}
+	cfg.settings.MachineID = func() (int, error) { return machineID, nil }
+	cfg.settings.CheckMachineID = func(id int) bool { return id == machineID }
 
-	sf, err := sonyflake.New(settings)
+	sf, err := sonyflake.New(cfg.settings)
 	if err != nil {
 		_ = repo.ReleaseMachineID(ctx, machineID)
 		return nil, fmt.Errorf("sonyflake initialization failed: %w", err)
@@ -213,11 +228,11 @@ func (g *Generator) heartbeat() {
 }
 
 // validateConfig ensures configuration meets production requirements
-func validateConfig(cfg *config) error {
-	if cfg.startTime.After(time.Now()) {
+func validateConfig(cfg *generatorConfig) error {
+	if cfg.settings.StartTime.After(time.Now()) {
 		return ErrInvalidStartTime
 	}
-	if cfg.timeUnit < time.Millisecond {
+	if cfg.settings.TimeUnit < time.Millisecond {
 		return ErrInvalidTimeUnit
 	}
 	if cfg.ttl <= 0 || cfg.renewFreq <= 0 {

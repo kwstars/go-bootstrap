@@ -493,7 +493,7 @@ func TestConcurrentGeneration(t *testing.T) {
 // TestValidateConfig tests configuration validation
 func TestValidateConfig(t *testing.T) {
 	// Only validate that the default config passes validation.
-	if err := validateConfig(defaultConfig()); err != nil {
-		t.Fatalf("defaultConfig failed validation: %v", err)
+	if err := validateConfig(defaultGeneratorConfig()); err != nil {
+		t.Fatalf("defaultGeneratorConfig failed validation: %v", err)
 	}
 }
