@@ -8,6 +8,7 @@ require (
 	github.com/hashicorp/consul/api v1.33.0
 	github.com/hashicorp/consul/sdk v0.17.0
 	github.com/redis/go-redis/v9 v9.17.2
+	github.com/rs/zerolog v1.34.0
 	github.com/sony/sonyflake/v2 v2.2.0
 	github.com/stretchr/testify v1.10.0
 	go.etcd.io/etcd/client/pkg/v3 v3.6.6
