@@ -208,7 +208,7 @@ func NewStandaloneClient(cfg RedisConfig, opts ...StandaloneOption) (redis.Unive
 
 	client := redis.NewClient(options)
 
-	ctx, cancel := context.WithTimeout(context.Background(), options.DialTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	if err := client.Ping(ctx).Err(); err != nil {
